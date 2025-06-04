@@ -58,7 +58,6 @@ from ii_agent.prompts.system_prompt import SYSTEM_PROMPT, SYSTEM_PROMPT_WITH_SEQ
 MAX_OUTPUT_TOKENS_PER_TURN = 32000
 MAX_TURNS = 200
 
-
 app = FastAPI(title="Agent WebSocket API")
 app.add_middleware(
     CORSMiddleware,
@@ -67,7 +66,6 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
-
 
 # Create a logger
 logger = logging.getLogger("websocket_server")
@@ -102,7 +100,7 @@ def map_model_name_to_client(model_name: str, ws_content: Dict[str, Any]) -> LLM
     Raises:
         ValueError: If the model name is not supported
     """
-    if "claude" in model_name:
+    if "claude" in model_name and 'anthropic' not in model_name:
         return get_client(
             "anthropic-direct",
             model_name=model_name,
@@ -118,11 +116,11 @@ def map_model_name_to_client(model_name: str, ws_content: Dict[str, Any]) -> LLM
             project_id=global_args.project_id,
             region=global_args.region,
         )
-    elif model_name in ["o3", "o4-mini", "gpt-4.1", "gpt-4o"]:
+    elif os.getenv("OPENAI_BASE_URL"):
         return get_client(
             "openai-direct",
             model_name=model_name,
-            azure_model=ws_content.get("azure_model", True),
+            azure_model=ws_content.get("azure_model", False),
             cot_model=ws_content.get("cot_model", False),
         )
     else:
@@ -139,7 +137,7 @@ async def websocket_endpoint(websocket: WebSocket):
     )
     print(f"Workspace manager created: {workspace_manager}")
 
-    try:    
+    try:
         # Initial connection message with session info
         await websocket.send_json(
             RealtimeEvent(
@@ -163,7 +161,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 if msg_type == "init_agent":
                     model_name = content.get("model_name", DEFAULT_MODEL)
                     # Initialize LLM client
-                    client = map_model_name_to_client(model_name, content)
+                    client = map_model_name_to_client(DEFAULT_MODEL, content)
 
                     # Create a new agent for this connection
                     tool_args = content.get("tool_args", {})
@@ -360,8 +358,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     user_input = content.get("text", "")
                     files = content.get("files", [])
                     # Initialize LLM client
-                    client = map_model_name_to_client(model_name, content)
-                    
+                    client = map_model_name_to_client(DEFAULT_MODEL, content)
+
                     # Call the enhance_prompt function from the module
                     success, message, enhanced_prompt = await enhance_user_prompt(
                         client=client,
@@ -424,7 +422,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 async def run_agent_async(
-    websocket: WebSocket, user_input: str, resume: bool = False, files: List[str] = []
+        websocket: WebSocket, user_input: str, resume: bool = False, files: List[str] = []
 ):
     """Run the agent asynchronously and send results back to the websocket."""
     agent = active_agents.get(websocket)
@@ -492,11 +490,11 @@ def cleanup_connection(websocket: WebSocket):
 
 
 def create_agent_for_connection(
-    client: LLMClient,
-    session_id: uuid.UUID,
-    workspace_manager: WorkspaceManager,
-    websocket: WebSocket,
-    tool_args: Dict[str, Any],
+        client: LLMClient,
+        session_id: uuid.UUID,
+        workspace_manager: WorkspaceManager,
+        websocket: WebSocket,
+        tool_args: Dict[str, Any],
 ):
     """Create a new agent instance for a websocket connection."""
     global global_args
