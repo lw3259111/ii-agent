@@ -1,3 +1,7 @@
 UPLOAD_FOLDER_NAME = "uploaded_files"
 COMPLETE_MESSAGE = "Completed the task."
 DEFAULT_MODEL = "anthropic/claude-3.7-sonnet"
+
+TOKEN_BUDGET = 120_000
+SUMMARY_MAX_TOKENS = 4000
+VISIT_WEB_PAGE_MAX_OUTPUT_LENGTH = 40_000
